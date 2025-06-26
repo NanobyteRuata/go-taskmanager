@@ -24,7 +24,10 @@ func (h *Handler) Router() http.Handler {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/tasks", h.GetTasks).Methods("GET")
+	r.HandleFunc("/tasks/{id}", h.GetTask).Methods("GET")
 	r.HandleFunc("/tasks", h.CreateTask).Methods("POST")
+	r.HandleFunc("/tasks/{id}", h.DeleteTask).Methods("DELETE")
+	r.HandleFunc("/tasks/{id}/complete", h.CompleteTask).Methods("PATCH")
 
 	return r
 }
@@ -37,6 +40,23 @@ func (h *Handler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, tasks)
+}
+
+func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	task, err := h.store.Get(id)
+	if err != nil {
+		if err == models.ErrTaskNotFound {
+			respondWithError(w, http.StatusNotFound, "Task not found")
+		} else {
+			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve task")
+		}
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, task)
 }
 
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
@@ -69,4 +89,44 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 		respondWithJSON(w, http.StatusCreated, savedTask)
 	}
+}
+
+func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	task, err := h.store.Get(id)
+	if err != nil {
+		if err == models.ErrTaskNotFound {
+			respondWithError(w, http.StatusNotFound, "Task not found")
+		} else {
+			respondWithError(w, http.StatusInternalServerError, "Failed to retrieve task")
+		}
+		return
+	}
+
+	task.Complete()
+
+	if err := h.store.Update(task); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to update task")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, task)
+}
+
+func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	if err := h.store.Delete(id); err != nil {
+		if err == models.ErrTaskNotFound {
+			respondWithError(w, http.StatusNotFound, "Task not found")
+		} else {
+			respondWithError(w, http.StatusInternalServerError, "Failed to delete task")
+		}
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Task deleted successfully"})
 }

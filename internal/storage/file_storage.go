@@ -86,6 +86,18 @@ func (fs *FileStorage) GetAll() ([]*models.Task, error) {
 	return tasks, nil
 }
 
+func (fs *FileStorage) Get(id string) (*models.Task, error) {
+	fs.mutex.Lock()
+	defer fs.mutex.Unlock()
+
+	task, exists := fs.tasks[id]
+	if !exists {
+		return nil, models.ErrTaskNotFound
+	}
+
+	return task, nil
+}
+
 func (fs *FileStorage) Create(task *models.Task) (*models.Task, error) {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
@@ -103,4 +115,37 @@ func (fs *FileStorage) Create(task *models.Task) (*models.Task, error) {
 	}
 
 	return task, nil
+}
+
+func (fs *FileStorage) Update(task *models.Task) error {
+	fs.mutex.Lock()
+	defer fs.mutex.Unlock()
+
+	if task.ID == "" {
+		return models.ErrInvalidID
+	}
+
+	if _, exists := fs.tasks[task.ID]; !exists {
+		return models.ErrTaskNotFound
+	}
+
+	fs.tasks[task.ID] = task
+
+	if err := fs.save(); err != nil {
+		return fmt.Errorf("failed to save task: %w", err)
+	}
+
+	return nil
+}
+
+func (fs *FileStorage) Delete(id string) error {
+	fs.mutex.Lock()
+	defer fs.mutex.Unlock()
+
+	if _, exists := fs.tasks[id]; !exists {
+		return models.ErrTaskNotFound
+	}
+
+	delete(fs.tasks, id)
+	return fs.save()
 }
