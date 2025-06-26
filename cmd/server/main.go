@@ -9,11 +9,13 @@ import (
 	"syscall"
 
 	"github.com/NanobyteRuata/go-taskmanager/internal/api"
+	"github.com/NanobyteRuata/go-taskmanager/internal/storage"
 	"github.com/joho/godotenv"
 )
 
 const (
-	defaultPort = "8080"
+	defaultPort            = "8080"
+	defaultStorageFileName = "tasks.json"
 )
 
 func main() {
@@ -26,7 +28,16 @@ func main() {
 		port = defaultPort
 	}
 
-	handler := api.NewHandler()
+	storageFileName := os.Getenv("STORAGE_FILENAME")
+	if storageFileName == "" {
+		storageFileName = defaultStorageFileName
+	}
+	store, err := storage.NewFileStorage(storageFileName)
+	if err != nil {
+		log.Fatalf("Failed to initialize storage: %v", err)
+	}
+
+	handler := api.NewHandler(store)
 
 	server := &http.Server{
 		Addr:    ":" + port,
